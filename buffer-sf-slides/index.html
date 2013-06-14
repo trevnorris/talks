@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+
+	<title>Buffer I/O</title>
+
+	<meta name="description" content="Using buffers properly to prevent I/O bottlenecks">
+	<meta name="author" content="Trevor Norris">
+
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+	<link rel="stylesheet" href="css/reveal.min.css">
+	<link rel="stylesheet" href="css/theme/night.css" id="theme">
+
+	<!-- For syntax highlighting -->
+	<link rel="stylesheet" href="lib/css/zenburn.css">
+
+	<!-- If the query includes 'print-pdf', use the PDF print sheet -->
+	<script>
+		document.write('<link rel="stylesheet" href="css/print/' + (window.location.search.match(/print-pdf/gi) ? 'pdf' : 'paper') + '.css" type="text/css" media="print">');
+	</script>
+
+	<!-- styles specific to this presentation -->
+	<style>
+		div.lefty-section {
+			text-align: left;
+			margin-top: 48px;
+		}
+		div.lefty-section p {
+			font-size: 34px;
+		}
+		pre.std-pre {
+			font-size: 24px;
+			margin-top: 38px;
+		}
+	</style>
+
+	<!--[if lt IE 9]>
+	<script src="lib/js/html5shiv.js"></script>
+	<![endif]-->
+</head>
+<body>
+	<div class="reveal">
+
+		<!-- Any section element inside of this container is displayed as a slide -->
+		<div class="slides">
+
+			<section>
+				<h1>Buffers and I/O</h1>
+				<h3 style="margin-top: 40px;">A Friendship that Lasts</h3>
+			</section>
+
+			<section>
+				<h3>about me</h3>
+				<div class="lefty-section" style="margin-top: 40px;">
+					<p class="fragment">- node.js maintainer @mozilla</p>
+					<p class="fragment">- started with web ui</p>
+					<p class="fragment">- js is my primary language</p>
+					<p class="fragment">- obsessed with performance</p>
+					<p class="fragment">- recently started programming c++, so please don't judge</p>
+				</div>
+			</section>
+
+			<section>
+				<h3>preliminary note</h3>
+				<p style="margin-top: 64px;">all code run and benchmarks results use buffer patch<br/>currently in review</p>
+			</section>
+
+			<section>
+				<h3>safety vs. performance</h3>
+				<h3>where am I?</h3>
+				<img class="fragment" src="./img/wile-n-rocket.jpg" />
+			</section>
+
+			<section>
+				<h3>why not use typed arrays?</h3>
+				<div class="lefty-section">
+					<p>Typed Arrays were created for the browser's needs</br>(e.g. security), so they come at a performance hit.</p>
+					<div class="fragment">
+					<p style="margin-top: 38px;">How much of a hit?</p>
+					<pre style="font-size: 28px;"><code data-trim style="margin-top: 24px;">
+new Buffer(0xffff);     //  680ns
+
+new Uint8Array(0xffff); // 8200ns
+					</code></pre>
+					</div>
+				</div>
+			</section>
+
+			<section>
+				<h3>why are Buffers so important?</h3>
+				<div class="lefty-section">
+					<p>They are the JS interface Node uses to transport and work with "external" memory.</p>
+					<p class="fragment">Don't they just take care of themselves?</p>
+					<p class="fragment">Sort of, but it's easy to create a bottleneck.</p>
+				</div>
+			</section>
+
+			<section>
+				<h3>a (rough) overview</h3>
+				<pre style="margin-top: 48px; font-size: 20px; box-shadow: 0 0 0;">
+                    ------------------------------------------
+                    |                  NODE                  |
+                    |----------------------------------------|
+                    |         |            |                 |
+    ---------       |         |            |                 |
+    |       | ----&gt; |         |            |                 |
+    |  I/O  |       |  libuv  |     v8     |   user script   |
+    |       | &lt;---- |         |            |                 |
+    ---------       |         |            |                 |
+                    |         |            |                 |
+                    ------------------------------------------
+                           \     /      \     /
+                            \   /        \   /
+                            char*        Buffer
+				</pre>
+				<div class="lefty-section">
+					<p>"external" memory is memory allocated outside the v8 heap</p>
+					<p>i.e. memory leak in "usual" JS may crash the app, memory leak with Buffers may cause your system to hault</p>
+				</div>
+				<aside class="notes">
+					mention data is attached and passed to the callback
+				</aside>
+			</section>
+
+			<section>
+				<h3>memory "leaks"</h3>
+				<p>many developers may see what they think is a memory leak, when in reality the memory isn't being "leaked" as much as retained.</p>
+			</section>
+
+			<section>
+				<h3>what's going on?</h3>
+				<pre style="font-size: 20px; margin-top: 64px; box-shadow: 0 0 0;">
+             large buffer pool sliced into smaller buffers
+ ---------------------------------------------------------------------
+ |  A  |      B      |     C     |                 D                 |
+ ---------------------------------------------------------------------
+              ∧                                    ∧
+              |                                    |
+              ∨                                    ∨
+ ---------------------------------------------------------------------
+ |  A  |             |     C     |                                   |
+ ---------------------------------------------------------------------
+			</pre>
+			<p>After GC only a fraction of memory may used, but still requires the entire pool to hang around.</p>
+			</section>
+
+			<section>
+				<h3>And if I don't want to?</h3>
+				<pre class="std-pre fragment"><code data-trim>
+Buffer.poolSize = 0;
+				</code></pre>
+				<p class="fragment">but be warned...</p>
+			</section>
+
+			<section>
+				<h3>to use or not to use</h3>
+				<div class="fragment">
+					<pre class="std-pre"><code data-trim>
+for (var i = 0; i &lt; 1e6; i++)
+  new Buffer(16);
+					</code></pre>
+					<pre style="font-size: 22px; box-shadow: 0 0 0;">0.21user 0.01system (15060maxresident)k
+(0major+4098minor)pagefaults 0swaps</pre>
+				</div>
+				<div class="fragment">
+					<pre class="std-pre"><code data-trim>
+for (var i = 0; i &lt; 1e6; i++)
+  new SlowBuffer(16);
+					</code></pre>
+					<pre style="font-size: 22px; box-shadow: 0 0 0;">0.38user 0.03system (56636maxresident)k
+(0major+17126minor)pagefaults 0swaps</pre>
+				</div>
+			</section>
+
+			<section>
+				<h3>find the sweet spot</h3>
+				<p>Be careful to not slice out small chunks that will persist indeterminately.</p>
+				<pre class="std-pre fragment"><code data-trim class="language-javascript">
+var store = [];
+
+socket.on('readable', function() {
+  var data = socket.read();
+  // this may cause a memory leak
+  store.push(data.slice(0, 10));
+});
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>instead copy out the data</h3>
+				<pre class="std-pre"><code data-trim class="language-javascript">
+var store = [];
+
+socket.on('readable', function() {
+  var data = socket.read();
+  // grab an un-pooled instance
+  var b = new SlowBuffer(10);
+  data.copy(b, 0, 0, 10);
+  store.push(b);
+});
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>of buffers and strings</h3>
+				<div class="lefty-section">
+					<p>Working with strings can be much simpler than working with Buffers, but it comes at a cost</p>
+					<div style="margin-top: 28px;" class="fragment">
+						<p>Allocate a Buffer</p>
+						<pre style="font-size: 28px;"><code data-trim>
+var buf = new Buffer(0xffff); // 680ns
+						</code></pre>
+					</div>
+					<div class="fragment">
+						<p>Convert it to a string</p>
+						<pre style="font-size: 28px;"><code data-trim>
+var str = b.toString();       // 8600ns - 262&mu;s
+					</code></pre>
+					</div>
+					<div class="fragment">
+						<p>Write the string back out</p>
+						<pre style="font-size: 28px;"><code data-trim>
+new Buffer(str);             // 15&mu;s - 156&mu;s
+						</code></pre>
+						<p style="font-size: 18px; margin-top: 32px; text-align: right;">note: value range is difference between ascii vs utf8.</p>
+					</div>
+				</div>
+			</section>
+
+			<section>
+				<h3>utf8 sucks, so be specific</h3>
+				<pre class="std-pre"><code data-trim>
+var str = '';
+for (var i = 0; i &lt; 0xffff; i++)
+	str += 'a';
+
+new Buffer(str)            // 88&mu;s
+
+new Buffer(str, 'ascii');  // 15&mu;s
+				</code></pre>
+				<aside class="notes">
+					brief mention of new use of external strings, and how utf8 aren't supported
+				</aside>
+			</section>
+
+			<section>
+				<h3>but can we go faster?</h3>
+				<p class="fragment" style="margin-top: 64px; font-weight: bold; font-size: 38px;">YES!</p>
+			</section>
+
+			<section>
+				<h3>most basic native module</h3>
+				<pre><code data-trim class="language-cpp">
+#include &lt;node.h&gt;
+#include &lt;v8.h&gt;
+
+// only for the sake of demonstration
+using namespace v8;
+
+Isolate* isolate;
+
+Handle&lt;Value&gt; Example(const Arguments&amp; args) {
+  return True(isolate);
+}
+
+void Initialize(Handle&lt;Object&gt; target) {
+  isolate = Isolate::GetCurrent();
+
+  HandleScope scope(isolate);
+  target->Set(String::New("example"),
+      FunctionTemplate::New(Example)->GetFunction());
+}
+
+NODE_MODULE(basics, Initialize)
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>but, that looks hard</h3>
+				<p class="fragment">Suck it up. There's a whole new level of performance improvements out there waiting to be discovered</p>
+			</section>
+
+			<section>
+				<h3>grab the data</h3>
+				<pre class="std-pre"><code data-trim class="language-cpp">
+// necessary to work with Buffers
+#include &lt;node_buffer.h&gt;
+
+Handle&lt;Value&gt; SetData(const Arguments&amp; args) {
+  HandleScope scope(isolate);
+
+  Local&lt;Object&gt; obj = args[0]-&gt;ToObject();
+  char* data = node::Buffer::Data(obj);
+  size_t length = node::Buffer::Length(obj);
+
+  // ok, we've got the data. now what?
+}
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>let's fill it with something</h3>
+				<pre class="std-pre"><code data-trim class="language-cpp">
+for (size_t i = 0; i &lt; length; i++) {
+  data[i] = (i % 26) + 97;
+}
+				</code></pre>
+				<p style="margin-top: 48px; font-size: 38px;">The result:</p>
+				<pre class="std-pre"><code data-trim class="language-javascript">
+var mod = require('./path/to/your/mod');
+var buf = new Buffer(10);
+
+mod.setData(buf);
+
+buf.toString();
+// 'abcdefghij'
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>incremental improvements</h3>
+				<aside class="notes">
+					discuss how small parts of code can be replaced as the need arises.
+					thing I love about node is how simple it is to perform these changes.
+				</aside>
+			</section>
+
+			<section>
+				<h3>perfectly good code</h3>
+				<pre><code data-trim class="language-javascript">
+var stream = require('stream');
+var liner = new stream.Transform({ objectMode: true });
+
+liner._transform = function(chunk, encoding, done) {
+  var data = chunk.toString('ascii');
+  if (this._lastLineData) data = this._lastLineData + data;
+
+  var lines = data.split('\n');
+  this._lastLineData = lines.splice(lines.length - 1, 1)[0];
+
+  lines.forEach(this.push.bind(this));
+  done();
+};
+
+liner._flush = function(done) {
+  if (this._lastLineData) this.push(this._lastLineData);
+  this._lastLineData = null;
+  done();
+};
+
+module.exports = liner;
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>what's unnecessary</h3>
+				<div class="lefty-section">
+					<p class="fragment">copy data into v8 heap</p>
+					<p class="fragment">duplicate strings on split</p>
+					<p class="fragment">if, say, written back to disk, will be written back to Buffer</p>
+				</div>
+			</section>
+
+			<section>
+				<h3>instead work directly with the Buffer</h3>
+				<div class="left-section fragment">
+					<p>Easiest would be just split buffer and write a new string directly</p>
+					<pre class="std-pre"><code data-trim class="language-cpp">
+// freakishly simplified
+
+size_t pos = 0;
+while (/* search for split */) {
+  pos++;
+}
+
+Local&lt;String&gt; str = String::New(data, pos);
+return scope.Close(str);
+					</code></pre>
+				</div>
+			</section>
+
+			<section>
+				<h3>is the effort worth it?</h3>
+				<p class="fragment">in preliminary testing, showed ~30% improvement</p>
+				<p class="fragment">but I'll be posting the code later, and you can test for yourself</p>
+			</section>
+
+			<section>
+				<h3>do as I say not as I do</h3>
+				<p class="fragment">I would never recommend these techniques</p>
+				<p class="fragment">...but they're pretty awesome.</p>
+			</section>
+
+			<section>
+				<h3>working with JS objects in c++ is evil</h3>
+				<p>Set/Get are used to work with JS object properties in C++</p>
+				<p class="fragment">And they're freakishly slow</p>
+				<p class="fragment">I mean really really slow</p>
+				<aside class="notes">
+					will need to break to console for these
+				</aside>
+			</section>
+
+			<section>
+				<h3>(remind me to show you some code)</h3>
+			</section>
+
+			<section>
+				<h3>coming down the pipe</h3>
+				<p>... warning, may change in the future</p>
+			</section>
+
+			<section>
+				<h3>Buffer.alloc()</h3>
+				<p>... explination of extending objects with external memory</p>
+				<pre class="std-pre"><code data-trim class="language-javascript">
+var obj = {};
+Buffer.alloc(3, obj)
+// obj == { 0: 0, 1: 0, 2: 0 }
+
+// no more need for the data
+Buffer.dispose(obj);
+// obj == {}
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>roll your own</h3>
+				<pre class="std-pre"><code data-trim>
+function SimpleData(n) {
+  this.length = ~~n;
+  Buffer.alloc(this.length, this);
+}
+
+SimpleData.prototype = { /* ... */ };
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>why just objects?</h3>
+				<pre class="std-pre"><code data-trim>
+function extDataFn() { }
+Buffer.alloc(3, extDataFn);
+// { [Function: extDataFn] 0: 0, 1: 0, 2: 0 }
+
+var extRegExp = /^node\.js$/;
+Buffer.alloc(3, extRegExp);
+// { /^node\.js$/ 0: 0, 1: 0, 2: 0 }
+
+// but this will die
+Buffer.alloc(3, []);
+				</pre></code>
+			</section>
+
+			<section>
+				<h3>Buffer.dispose()</h3>
+				<p>Manually dispose data allocated using Buffer.alloc()</p>
+				<pre class="std-pre"><code data-trim>
+var b = { foo: 'bar' };
+Buffer.alloc(3, b);
+// { foo: 'bar', 0: 0, 0: 1, 0: 2 }
+
+Buffer.dispose(b);
+// { foo: 'bar' }
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>Buffer.prototype.dispose()</h3>
+				<p>Manually freeing a Buffer instance</p>
+				<pre class="std-pre"><code data-trim class="language-javascript">
+var b = new Buffer(5);
+// &lt;Buffer 00 00 00 00 00&gt;
+
+b.dispose();
+// &lt;Buffer &gt;
+				</code></pre>
+			</section>
+
+			<section>
+				<h3>opening your pipe</h3>
+				<p>prevent the GC from doing extra work when the Buffer is no longer needed</p>
+				<pre class="std-pre"><code data-trim class="language-javascript">
+function onconnection(handle) {
+  handle.server = true;
+  handle.onread = function onread(buffer, offset, length) {
+    // use data for quick synchronous operation
+    buffer.dispose();
+  };
+  clientHandle.readStart();
+}
+				</code></pre>
+				<p class="fragment">before: ~15Gb/s</p>
+				<p class="fragment">after:  ~20Gb/s</p>
+			</section>
+
+			<section>
+				<h3>information about me</h3>
+				<p>... </p>
+			</section>
+		</div>
+	</div>
+
+	<script src="lib/js/head.min.js"></script>
+	<script src="js/reveal.min.js"></script>
+
+	<script>
+		// Full list of configuration options available here:
+		// https://github.com/hakimel/reveal.js#configuration
+		Reveal.initialize({
+			controls: true,
+			progress: true,
+			history: true,
+			center: true,
+
+			theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+			transition: Reveal.getQueryHash().transition || 'none', // default/cube/page/concave/zoom/linear/fade/none
+
+			// Optional libraries used to extend on reveal.js
+			dependencies: [
+				{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+				{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+				{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+				{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+				{ src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+				{ src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+				// { src: 'plugin/search/search.js', async: true, condition: function() { return !!document.body.classList; } }
+				// { src: 'plugin/remotes/remotes.js', async: true, condition: function() { return !!document.body.classList; } }
+			]
+		});
+	</script>
+</body>
+</html>
