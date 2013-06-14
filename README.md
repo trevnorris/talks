@@ -1,10 +1,5 @@
-node.js presentations
+## node.js presentations
 
-Each sub-folder contains a different presentation and associated materials. Each
-one will have a brief description here.
+Each subfolder contains a README with notes specific to its contents.
 
-
-Dirs:
-
-js-vs-cc-set-properties: four tests showing the difference in performance
-setting Object properties in c++ vs javascript.
+NOTE: There's a lot more that will be here soon. Just needs some cleanup.

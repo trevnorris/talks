@@ -21,6 +21,7 @@ time = process.hrtime(time);
 console.log(((time[0] * 1e9 + time[1]) / iter)|0);
 
 
+// object is created in cc and set as instance of function when called
 function setProperties(length, type, used) {
   this.length = length;
   this.type = type;
@@ -28,6 +29,7 @@ function setProperties(length, type, used) {
 }
 
 
+// returns new object setting object properties passed from cc
 function setPropObj(length, type, used) {
   return {
     length: length,

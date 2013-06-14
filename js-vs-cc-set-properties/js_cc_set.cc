@@ -37,9 +37,9 @@ Handle<Value> SetInCCSlow(const Arguments& args) {
 
   for (size_t i = 0; i < iter; i++) {
     obj = Object::New();
-    obj->Set(String::New("length"), arg0);
-    obj->Set(String::New("type"), arg1);
-    obj->Set(String::New("used"), arg2);
+    obj->Set(String::NewFromUtf8(isolate, "length"), arg0);
+    obj->Set(String::NewFromUtf8(isolate, "type"), arg1);
+    obj->Set(String::NewFromUtf8(isolate, "used"), arg2);
   }
 
   return scope.Close(obj);
@@ -117,21 +117,27 @@ void Initialize(Handle<Object> target) {
 
   HandleScope scope(isolate);
 
-  target->Set(String::New("setInCCSlow"),
+  target->Set(String::NewFromUtf8(isolate, "setInCCSlow"),
               FunctionTemplate::New(SetInCCSlow)->GetFunction());
-  target->Set(String::New("setInCCSym"),
+  target->Set(String::NewFromUtf8(isolate, "setInCCSym"),
               FunctionTemplate::New(SetInCCSym)->GetFunction());
-  target->Set(String::New("setInJS"),
+  target->Set(String::NewFromUtf8(isolate, "setInJS"),
               FunctionTemplate::New(SetInJS)->GetFunction());
-  target->Set(String::New("setInJSObj"),
+  target->Set(String::NewFromUtf8(isolate, "setInJSObj"),
               FunctionTemplate::New(SetInJSObj)->GetFunction());
-  target->Set(String::New("setupCC"),
+  target->Set(String::NewFromUtf8(isolate, "setupCC"),
               FunctionTemplate::New(SetupCC)->GetFunction());
 
   p_empty_obj = Persistent<Object>::New(isolate, Object::New());
-  p_length_sym = Persistent<String>::New(isolate, String::New("length"));
-  p_type_sym = Persistent<String>::New(isolate, String::New("type"));
-  p_used_sym = Persistent<String>::New(isolate, String::New("used"));
+
+  Local<String> length = String::NewFromUtf8(isolate, "length");
+  p_length_sym = Persistent<String>::New(isolate, length);
+
+  Local<String> type = String::NewFromUtf8(isolate, "type");
+  p_type_sym = Persistent<String>::New(isolate, type);
+
+  Local<String> used = String::NewFromUtf8(isolate, "used");
+  p_used_sym = Persistent<String>::New(isolate, used);
 }
 
 
