@@ -34,6 +34,12 @@ static const uint8_t* type_sym;
 static const uint8_t* used_sym;
 
 
+template<class T>
+inline Local<T> ToLocal(Persistent<T>* p_) {
+  return *reinterpret_cast<Local<T>*>(p_);
+}
+
+
 void SetInCCSlow(const FunctionCallbackInfo<Value>& args) {
   FN_PREP(args);
 
@@ -65,9 +71,9 @@ void SetInCCSym(const FunctionCallbackInfo<Value>& args) {
 
   for (size_t i = 0; i < iter; i++) {
     obj = Object::New();
-    obj->Set(Local<String>::New(isolate, p_length_sym), arg0);
-    obj->Set(Local<String>::New(isolate, p_type_sym), arg1);
-    obj->Set(Local<String>::New(isolate, p_used_sym), arg2);
+    obj->Set(ToLocal<String>(&p_length_sym), arg0);
+    obj->Set(ToLocal<String>(&p_type_sym), arg1);
+    obj->Set(ToLocal<String>(&p_used_sym), arg2);
   }
 
   args.GetReturnValue().Set(obj);
@@ -86,7 +92,7 @@ void SetInJS(const FunctionCallbackInfo<Value>& args) {
   for (size_t i = 0; i < iter; i++) {
     obj = Object::New();
     Local<Value> argv[3] = { arg0, arg1, arg2 };
-    Local<Function>::New(isolate, p_setprop_fn)->Call(obj, 3, argv);
+    ToLocal<Function>(&p_setprop_fn)->Call(obj, 3, argv);
   }
 
   args.GetReturnValue().Set(obj);
@@ -104,8 +110,8 @@ void SetInJSObj(const FunctionCallbackInfo<Value>& args) {
 
   for (size_t i = 0; i < iter; i++) {
     Local<Value> argv[3] = { arg0, arg1, arg2 };
-    Local<Function> fn = Local<Function>::New(isolate, p_setobj_fn);
-    obj = fn->Call(Local<Object>::New(isolate, p_empty_obj), 3, argv);
+    Local<Function> fn = ToLocal<Function>(&p_setobj_fn);
+    obj = fn->Call(ToLocal<Object>(&p_empty_obj), 3, argv);
   }
 
   args.GetReturnValue().Set(obj);
