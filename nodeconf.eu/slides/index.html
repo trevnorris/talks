@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+
+	<title>Node Core Insanity</title>
+
+	<meta name="description" content="Explaining the insanity of Node core performance optimizations">
+	<meta name="author" content="Trevor Norris">
+
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+	<link rel="stylesheet" href="css/reveal.min.css">
+	<link rel="stylesheet" href="css/theme/night.css" id="theme">
+
+	<!-- For syntax highlighting -->
+	<link rel="stylesheet" href="lib/css/zenburn.css">
+
+	<!-- If the query includes 'print-pdf', use the PDF print sheet -->
+	<script>
+		document.write('<link rel="stylesheet" href="css/print/' + (window.location.search.match(/print-pdf/gi) ? 'pdf' : 'paper') + '.css" type="text/css" media="print">');
+	</script>
+
+	<!-- styles specific to this presentation -->
+	<style>
+		div.lefty-section {
+			text-align: left;
+			margin-top: 48px;
+		}
+		div.lefty-section p {
+			font-size: 34px;
+		}
+		pre.std-pre {
+			font-size: 24px;
+			margin-top: 38px;
+		}
+    .reveal pre code {
+      max-height: 720px;
+      padding: 12px;
+    }
+    .reveal .slides > section {
+      padding: 0;
+      min-height: 90%;
+    }
+    .reveal .slides {
+      height: 100%;
+      top: 400px;
+      margin-top: 0;
+    }
+    /*
+    .reveal .slides > section > section {
+      min-height: 100%;
+    }
+    */
+	</style>
+
+	<!--[if lt IE 9]>
+	<script src="lib/js/html5shiv.js"></script>
+	<![endif]-->
+</head>
+<body>
+	<div class="reveal">
+
+		<!-- Any section element inside of this container is displayed as a slide -->
+		<div class="slides">
+
+			<section>
+				<h1>You Did What?!?</h1>
+				<h3 style="margin-top: 40px;">Understanding Node Optimizations</h3>
+			</section>
+
+			<section>
+				<h3>preliminary note</h3>
+        <p style="margin-top: 64px;">All code runs on latest master.</p>
+        <p class="fragment">Literally, I just patched an re-ran these yesterday.</p>
+			</section>
+
+			<section>
+				<h3>why is core code so confusing?</h3>
+				<div class="lefty-section" style="margin-top: 40px;">
+          <p class="fragment" style="margin-top: 24px;">It's not intentional.</p>
+          <p class="fragment" style="margin-top: 24px;">The result of ridiculous amounts of benchmarks and analysis.</p>
+				</div>
+			</section>
+
+      <section>
+        <h3>starting with the basics</h3>
+        <p>Hoisting our functions</p>
+      </section>
+
+      <section>
+        <h3>writing functions inline</h3>
+        <pre style="font-size: 18px;"><code class="language-javascript" style="margin-top: 16px;">var SB = require('buffer').SlowBuffer;
+var max = 3e4;
+(function runTick() {
+  process.nextTick(function genPrimes() {
+    if (--max &lt; 0) return;
+    var primes = [];
+    var len = (max &gt;&gt;&gt; 3) + 1;
+    var sieve = new SB(len);
+    sieve.fill(0xff, 0, len);
+    var cntr, x, j;
+    for (cntr = 0, x = 2; x &lt;= max; ++x) {
+      if (sieve[x &gt;&gt;&gt; 3] &amp; (1 &lt;&lt; (x &amp; 7))) {
+        primes[cntr++] = x
+        for(j = 2 * x; j &lt;= max; j += x)
+          sieve[j &gt;&gt;&gt; 3] &amp;= ~(1 &lt;&lt; (j &amp; 7))
+      }
+    }
+    runTick();
+  });
+}());</code></pre>
+        <p class="fragment">Runtime:</p>
+				<pre class="fragment" style="margin-top: 28px; font-size: 24px; box-shadow: 0 0 0;">
+$ /usr/bin/time node primegen0.js
+19.53user 0.00system 0:19.58elapsed 99%CPU (51040maxresident)k
+0inputs+0outputs (0major+13104minor)pagefaults 0swaps
+        </pre>
+      </section>
+
+      <section>
+        <h3>hoisting our functions</h3>
+        <pre style="font-size: 18px;"><code class="language-javascript" style="margin-top: 16px;">var SB = require('buffer').SlowBuffer;
+
+function genPrimes(max) {
+  if (--max &lt; 0) return;
+  var primes = [];
+  var len = (max &gt;&gt;&gt; 3) + 1;
+  var sieve = new SB(len);
+  sieve.fill(0xff, 0, len);
+  var cntr, x, j;
+  for (cntr = 0, x = 2; x &lt;= max; ++x) {
+    if (sieve[x &gt;&gt;&gt; 3] &amp; (1 &lt;&lt; (x &amp; 7))) {
+      primes[cntr++] = x
+      for(j = 2 * x; j &lt;= max; j += x)
+        sieve[j &gt;&gt;&gt; 3] &amp;= ~(1 &lt;&lt; (j &amp; 7))
+    }
+  }
+  runTick();
+}
+
+var max = 3e4;
+function runTick() {
+  process.nextTick(function() {
+    if (--max &lt; 0) return;
+    genPrimes(max);
+    runTick();
+  });
+}
+runTick();</code></pre>
+        <p class="fragment">Runtime:</p>
+				<pre class="fragment" style="margin-top: 28px; font-size: 24px; box-shadow: 0 0 0;">
+$ /usr/bin/time node primegen1.js
+4.59user 0.04system 0:04.64elapsed 99%CPU (50540maxresident)k
+0inputs+0outputs (0major+12977minor)pagefaults 0swaps
+        </pre>
+      </section>
+
+      <section>
+        <h3>so... hoisting functions matter</h3>
+        <p>Here it was 3.3x's faster.</p>
+      </section>
+
+      <section>
+        <h3>carefully choose your encoding</h3>
+        <p class="fragment">e.g. Why I hate UTF8</p>
+      </section>
+
+      <section>
+        <h3>Buffer#toString() on one byte characters</h3>
+				<pre style="margin-top: 48px; margin-left: 250px; font-size: 24px; box-shadow: 0 0 0;">
+binary  16B    110.72 ns/op
+ascii   16B    110.06 ns/op   N/A
+utf8    16B    115.04 ns/op   N/A
+
+binary  1KB    157.29 ns/op
+ascii   1KB    246.49 ns/op   -36.2%
+utf8    1KB    254.67 ns/op   -38.2%
+
+binary  32KB     2.37 μs/op
+ascii   32KB     4.57 μs/op   -92.8%
+utf8    32KB     5.13 μs/op  -116.5%
+
+binary  128KB    8.79 μs/op
+ascii   128KB   17.00 μs/op   -93.4%
+utf8    128KB   19.65 μs/op  -123.5%
+
+binary  512KB   36.74 μs/op
+ascii   512KB   73.67 μs/op  -100.5%
+utf8    512KB  104.23 μs/op  -183.9%
+        </pre>
+      </section>
+
+      <section>
+        <h3>Buffer#toString() on two byte characters</h3>
+				<pre style="margin-top: 48px; margin-left: 250px; font-size: 24px; box-shadow: 0 0 0;">
+binary  16B    111.21 ns/op
+utf8    16B    156.31 ns/op    -40.5%
+
+binary  1KB    159.45 ns/op
+utf8    1KB      2.65 μs/op  -1566.7%
+
+binary  32KB     2.41 μs/op
+utf8    32KB   130.33 μs/op  -5306.7%
+
+binary  128KB    9.16 μs/op
+utf8    128KB  539.72 μs/op  -5719.8%
+
+binary  512KB   37.89 μs/op
+utf8    512KB    2.61 ms/op  -6788.4%
+        </pre>
+      </section>
+
+      <section>
+        <h3>why parse utf8 in binary?</h3>
+        <p>Max, this is for you : )</p>
+      </section>
+
+      <section>
+        <h3>maybe to write out json keys</h3>
+        <p><i style="font-size: 80%;">*cough*</i> leveldb <i style="font-size: 80%;">*cough*</i></p>
+        <p class="fragment" style="margin-top: 45px;">Important Assumption: All keys fit in one byte space.</p>
+      </section>
+
+      <section>
+        <h3>scenario setup</h3>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 24px;">var size = 4;
+
+// Create a ridiculous JSON object with utf8 values.
+var json = {};
+for (var i = 0; i &lt; size; i++)
+  json[i] = 'foo:\u0222 bar:\u0223';
+
+// First setup the data to look  like it would after being read in
+// from a file.
+var json_string = JSON.stringify(json);
+
+// We're going to assume the file was written in UTF8.
+var json_buffer = new Buffer(json_string, 'utf8');</code></pre>
+      </section>
+
+      <section>
+        <h3>now the magic</h3>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 24px;">// Start working with the data.
+var binary_json = json_buffer.toString('binary');
+
+// Unfortunately JSON.parse always assumes UTF8.
+// But I'm working on a hack for that.
+var json_binary = JSON.parse(binary_json);
+
+// Here we'll see the values look all fubar, but before they're
+// written out to a stream we can convert them back to a Buffer using
+// binary encoding and they'll have the same representation.
+console.log(json_binary);</code></pre>
+        <div class="fragment" style="margin-top: 32px;">
+          <pre style="margin-top: 20px; font-size: 20px; box-shadow: 0 0 0;">
+        Output:                             Actual:
+
+        { '0': 'foo:È¢ bar:È£',             { '0': 'foo:Ȣ bar:ȣ',
+          '1': 'foo:È¢ bar:È£',               '1': 'foo:Ȣ bar:ȣ',
+          '2': 'foo:È¢ bar:È£',               '2': 'foo:Ȣ bar:ȣ',
+          '3': 'foo:È¢ bar:È£' }              '3': 'foo:Ȣ bar:ȣ' }
+          </pre>
+          <p class="fragment">Yeah. Strange I know, but it'll all work out.</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>how can it be used?</h3>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 24px;">var db = require('levelup')('./mydb');
+
+// Convert each value to Buffer before passing down the pipe
+db.put(0, new Buffer(json_binary[0], 'binary'), function(err) {
+  db.get(0, function(err, val) {
+    console.log(val);
+  });
+});</code></pre>
+        <p class="fragment" style="margin-top: 32px;">Output - foo:Ȣ bar:ȣ</p>
+      </section>
+
+      <section>
+        <h3>what does this have to do with core?</h3>
+        <p class="fragment" style="margin-top: 34px;">We make the assumption that all HTTP headers are already in ASCII space, so no need for the additional parsing.</p>
+      </section>
+
+      <section>
+        <h3>when strings get large</h3>
+        <p>What happens to performance as string size grows?</p>
+        <img class="fragment" src="./img/no_external_strings.png" />
+      </section>
+
+      <section>
+        <h3>what to do about it?</h3>
+        <p class="fragment">Externalized Strings to the rescue!</p>
+        <img class="fragment" src="./img/with_external_strings.png" />
+      </section>
+
+      <section>
+        <h3>strange side effects</h3>
+        <p>Mutable Strings!!!</p>
+        <pre style="font-size: 18px;"><code class="language-cpp" style="margin-top: 16px;">void AfterFill(const FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  HandleScope scope(args.GetIsolate());
+
+  Local&lt;String&gt; long_string = args[0].As&lt;String&gt;();
+
+  assert(long_string-&gt;IsString());
+  assert(args[1]-&gt;IsString());
+
+  String::AsciiValue fill_char(args[1]);
+
+  char* data = NULL;
+  size_t length = 0;
+  assert(node::StringBytes::GetExternalParts(
+        long_string, const_cast&lt;const char**&gt;(&amp;data), &amp;length));
+
+  memset(data, (*fill_char)[0], length);
+}</code></pre>
+        <pre style="font-size: 18px;"><code class="language-javascript" style="margin-top: 16px;">var long_string = new Buffer(1024 * 1024).fill('a').toString('binary');
+
+console.log(long_string.substr(0, 10));
+
+afterFill(long_string, 'b');
+
+console.log(long_string.substr(0, 10));</code></pre>
+				<pre class="fragment" style="margin-top: 48px; font-size: 22px; box-shadow: 0 0 0;">
+                             Output:
+
+                             aaaaaaaaaa
+                             bbbbbbbbbb
+        </pre>
+      </section>
+
+      <section>
+        <h3>best practice tip</h3>
+    <p class="fragment" style="margin-top: 50px; font-weight: bold; font-size: 60px;">DON'T MUTATE YOUR STRINGS!!!</p>
+      </section>
+
+      <section>
+        <h3>setting object properties</h3>
+        <p>What could be so hard?</p>
+        <p class="fragment">More than you think</p>
+      </section>
+
+      <section>
+        <h3>basic case</h3>
+        <pre style="font-size: 16px;"><code class="language-cpp" style="margin-top: 16px;">static const uint8_t* length_sym;
+static const uint8_t* type_sym;
+static const uint8_t* used_sym;
+
+
+void SetInCCSlow(const FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  Isolate* isolate = args.GetIsolate();
+  HandleScope scope(isolate);
+
+  // Create a new Object to contain our properties.
+  Local&lt;Object&gt; obj = Object::New();
+
+  // Passing in three property types.
+  Local&lt;Number&gt; arg0 = args[0]-&gt;ToNumber();
+  Local&lt;String&gt; arg1 = args[1]-&gt;ToString();
+  Local&lt;Boolean&gt; arg2 = args[2]-&gt;ToBoolean();
+
+  // Set the Object properties.
+  obj-&gt;Set(String::NewFromOneByte(isolate, length_sym), arg0);
+  obj-&gt;Set(String::NewFromOneByte(isolate, type_sym), arg1);
+  obj-&gt;Set(String::NewFromOneByte(isolate, used_sym), arg2);
+
+  args.GetReturnValue().Set(obj);
+}
+
+
+// Done on initialize.
+length_sym = reinterpret_cast&lt;const uint8_t*&gt;("length");
+type_sym = reinterpret_cast&lt;const uint8_t*&gt;("type");
+used_sym = reinterpret_cast&lt;const uint8_t*&gt;("used");</code></pre>
+      </section>
+
+      <section>
+        <h3>using persistent handles</h3>
+        <pre style="font-size: 16px;"><code class="language-cpp" style="margin-top: 16px;">Persistent&lt;String&gt; p_length_sym;
+Persistent&lt;String&gt; p_type_sym;
+Persistent&lt;String&gt; p_used_sym;
+
+
+// Only safe if the Persistent isn't Weak.
+template&lt;class T&gt;
+inline Local&lt;T&gt; ToLocal(Persistent&lt;T&gt;* p_) {
+  return *reinterpret_cast&lt;Local&lt;T&gt;*&gt;(p_);
+}
+
+
+void SetInCCSym(const FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  Isolate* isolate = args.GetIsolate();
+  HandleScope scope(isolate);
+
+  Local&lt;Object&gt; obj = Object::New();
+
+  Local&lt;Number&gt; arg0 = args[0]-&gt;ToNumber();
+  Local&lt;String&gt; arg1 = args[1]-&gt;ToString();
+  Local&lt;Boolean&gt; arg2 = args[2]-&gt;ToBoolean();
+
+  // This time we'll use the Persistent Strings.
+  obj-&gt;Set(ToLocal&lt;String&gt;(&amp;p_length_sym), arg0);
+  obj-&gt;Set(ToLocal&lt;String&gt;(&amp;p_type_sym), arg1);
+  obj-&gt;Set(ToLocal&lt;String&gt;(&amp;p_used_sym), arg2);
+
+  args.GetReturnValue().Set(obj);
+}
+
+
+// Done on initialize.
+p_length_sym.Reset(isolate, String::NewFromOneByte(isolate, length_sym));
+p_type_sym.Reset(isolate, String::NewFromOneByte(isolate, type_sym));
+p_used_sym.Reset(isolate, String::NewFromOneByte(isolate, used_sym));</code></pre>
+      </section>
+
+      <section>
+        <h3>write object properties in js</h3>
+        <pre style="font-size: 16px;"><code class="language-cpp" style="margin-top: 16px;">void SetInJS(const FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  Isolate* isolate = args.GetIsolate();
+  HandleScope scope(isolate);
+
+  Local&lt;Object&gt; obj = Object::New();
+  Local&lt;Number&gt; arg0 = args[0]-&gt;ToNumber();
+  Local&lt;String&gt; arg1 = args[1]-&gt;ToString();
+  Local&lt;Boolean&gt; arg2 = args[2]-&gt;ToBoolean();
+
+  Local&lt;Value&gt; argv[3] = { arg0, arg1, arg2 };
+
+  // We've previously Persisted the below JS function.
+  ToLocal&lt;Function&gt;(&amp;p_setprop_fn)-&gt;Call(obj, 3, argv);
+
+  args.GetReturnValue().Set(obj);
+}</code></pre>
+        <pre style="font-size: 16px;"><code class="language-javascript" style="margin-top: 16px;">// object is created in cc and set as instance of function when called
+function setProperties(length, type, used) {
+  this.length = length;
+  this.type = type;
+  this.used = used;
+}</code></pre>
+      </section>
+
+      <section>
+        <h3>doing it all in js</h3>
+        <pre style="font-size: 16px;"><code class="language-cpp" style="margin-top: 16px;">void SetInJSObj(const FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  Isolate* isolate = args.GetIsolate();
+  HandleScope scope(isolate);
+
+  Local&lt;Number&gt; arg0 = args[0]-&gt;ToNumber();
+  Local&lt;String&gt; arg1 = args[1]-&gt;ToString();
+  Local&lt;Boolean&gt; arg2 = args[2]-&gt;ToBoolean();
+
+  Local&lt;Value&gt; argv[3] = { arg0, arg1, arg2 };
+
+  // Pass in previously persisted empty Object.
+  Local&lt;Function&gt; fn = ToLocal&lt;Function&gt;(&amp;p_setobj_fn);
+  obj = fn-&gt;Call(obj, 3, argv);
+
+  args.GetReturnValue().Set(obj);
+}</code></pre>
+        <pre style="font-size: 16px;"><code class="language-javascript" style="margin-top: 16px;">// returns new object setting object properties passed from cc
+function setPropObj(length, type, used) {
+  return {
+    length: length,
+    type: type,
+    used: used
+  };
+}</code></pre>
+      </section>
+
+      <section>
+        <h3>now, the numbers</h3>
+				<pre style="margin-top: 48px; font-size: 28px; box-shadow: 0 0 0;">
+             setInCCSlow -   1.56 μs/op
+             setInCCSym  - 809.65 ns/op
+             setInJS     - 370.62 ns/op
+             setInJSObj  - 148.61 ns/op
+        </pre>
+        <div class="fragment">
+          <p>Even in the optimized C++ case, calling to JS is 4.5x's faster.</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>access named vs indexed properties</h3>
+        <p>Now we enter the rabbit hole.</p>
+      </section>
+
+      <section>
+        <h3>named object properties</h3>
+        <pre style="font-size: 18px;"><code class="language-javascript" style="margin-top: 16px;">// Setup our object with named properties.
+var obj = { length: 10, type: 'string', used: true };
+accessNamed(obj, iter);</code></pre>
+        <pre style="font-size: 18px;"><code class="language-cpp" style="margin-top: 16px;">void AccessNamed(const FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  Isolate* isolate = args.GetIsolate();
+  HandleScope scope(isolate);
+
+  Local&lt;Object&gt; obj = args[0].As&lt;Object&gt;();
+  size_t iter = args[1]-&gt;Uint32Value();
+
+  assert(obj-&gt;IsObject());
+
+  for (size_t i = 0; i &lt; iter; i++) {
+    size_t length = obj-&gt;Get(ToLocal(&amp;p_length_sym))-&gt;Uint32Value();
+    Local&lt;String&gt; type = obj-&gt;Get(ToLocal(&amp;p_type_sym)).As&lt;String&gt;();
+    bool used = obj-&gt;Get(ToLocal(&amp;p_used_sym))-&gt;IsTrue();
+  }
+}</code></pre>
+      </section>
+
+      <section>
+        <h3>indexed properties</h3>
+        <pre style="font-size: 18px;"><code class="language-javascript" style="margin-top: 16px;">// Use indexed properties for values instead.
+var obj = { 0: 10, 1: 'string', 2: true };
+accessIndexed(obj, iter);</code></pre>
+        <pre style="font-size: 18px;"><code class="language-cpp" style="margin-top: 16px;">void AccessIndexed(const FunctionCallbackInfo&lt;Value&gt;&amp; args) {
+  Isolate* isolate = args.GetIsolate();
+  HandleScope scope(isolate);
+
+  Local&lt;Object&gt; obj = args[0].As&lt;Object&gt;();
+  size_t iter = args[1]-&gt;Uint32Value();
+
+  assert(obj-&gt;IsObject());
+
+  for (size_t i = 0; i &lt; iter; i++) {
+    size_t length = obj-&gt;Get(0)-&gt;Uint32Value();
+    Local&lt;String&gt; type = obj-&gt;Get(1).As&lt;String&gt;();
+    bool used = obj-&gt;Get(2)-&gt;IsTrue();
+  }
+}</code></pre>
+      </section>
+
+      <section>
+        <h3>you see what's coming</h3>
+				<pre style="margin-top: 48px; font-size: 28px; box-shadow: 0 0 0;">
+accessNamed   - 256.78 ns/op
+
+accessIndexed -  71.02 ns/op  2.6x's faster
+        </pre>
+      </section>
+
+      <section>
+        <h3>sharing state</h3>
+        <p class="fragment">For the few that wonder what's going on in <code>process.nextTick()</code></p>
+      </section>
+
+      <section>
+        <h3>attach external memory to an object</h3>
+        <pre style="font-size: 16px;"><code class="language-javascript" style="margin-top: 24px;">// This tickInfo thing is used so that the C++ code in src/node.cc
+// can have easy accesss to our nextTick state, and avoid unnecessary
+// calls into JS land.
+var tickInfo = process._tickInfo;
+
+// Done this way to make each placement much easier to remember.
+var kInTick = 0;
+var kIndex = 1;
+var kLastThrew = 2;
+var kLength = 3;
+
+// ... further down ...
+
+function nextTick(callback) {
+  nextTickQueue.push({
+    callback: callback,
+    domain: process.domain || null
+  });
+
+  // By manually tracking the queue length we can quickly alert C++
+  // whether there are callbacks to be processed or not.
+  tickInfo[kLength]++;
+}</code></pre>
+        <pre style="font-size: 16px;"><code class="language-cpp" style="margin-top: 16px;">// We can access each flag without touching the v8 API.
+if (tick_info-&gt;in_tick() == 1) {
+  return ret;
+}
+
+if (tick_info-&gt;length() == 0) {
+  tick_info-&gt;set_index(0);
+  return ret;
+}
+
+// Now that all flags have been checked, we can be confident there's
+// no need to call into JS unnecessarily.
+tick_callback_function-&gt;Call(process_object, 0, NULL);</code></pre>
+      </section>
+
+      <section>
+        <h3>but does it save us anything</h3>
+        <div class="fragment">
+          <p style="margin-top: 34px;">Running the following in a custom build, counting the number of calls from <code>MakeCallback</code> without then with the optimizations:</p>
+          <pre style="margin-top: 48px; font-size: 22px; box-shadow: 0 0 0;">
+./node benchmark/net/net-c2s.js len=10240 type=buf dur=5
+          </pre>
+        </div>
+        <p class="fragment">Without the optimization: ~106,000 calls/sec</p>
+        <p class="fragment">With the optimization: ~14,000 calls/sec</p>
+        <p class="fragment" style="margin-top: 40px;">That's pushing 100k calls into JS we've bypassed with this little trick.</p>
+      </section>
+
+      <section>
+        <h3>final thoughts</h3>
+        <p class="fragment" style="margin-top: 36px;">Core has a reason for the insanity.</p>
+        <p class="fragment" style="margin-top: 36px;">We want Node to stay out of your way.</p>
+        <p class="fragment" style="margin-top: 36px;">If you want to dive into core, please feel free to ask me.</p>
+      </section>
+
+			<section>
+				<h3>information</h3>
+        <p style="text-align: left; margin-top: 40px;">slides and examples: github.com/trevnorris/talks/</p>
+        <p style="text-align: left;">freenode: trevnorris</p>
+        <p style="text-align: left;">twitter: @trevnorris</p>
+        <p style="text-align: left;">you get the idea</p>
+			</section>
+		</div>
+	</div>
+
+	<script src="lib/js/head.min.js"></script>
+	<script src="js/reveal.min.js"></script>
+
+	<script>
+		// Full list of configuration options available here:
+		// https://github.com/hakimel/reveal.js#configuration
+		Reveal.initialize({
+			controls: true,
+			progress: true,
+			history: true,
+			center: true,
+
+			theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+			transition: Reveal.getQueryHash().transition || 'none', // default/cube/page/concave/zoom/linear/fade/none
+
+			// Optional libraries used to extend on reveal.js
+			dependencies: [
+				{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+				{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+				{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+				{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+				{ src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+				{ src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+			]
+		});
+	</script>
+</body>
+</html>

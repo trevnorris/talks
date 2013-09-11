@@ -1,0 +1,12 @@
+Large Strings
+
+Copying data into the v8 heap can usually be inexpensive, but there is a
+wall where the GC will spin up and take forever to process. To get around
+this Externalized Strings have been implemented. Unfortunately they are
+only allowed for specific string types. This will discuss the difference
+between encodings, and how to best take advantage of these.
+
+This test only works with a custom build of Node that disables the use of
+externalized strings in string_bytes.
+
+Also, throw in some small example of creating mutable strings.

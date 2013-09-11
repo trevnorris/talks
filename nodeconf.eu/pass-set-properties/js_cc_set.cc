@@ -55,8 +55,6 @@ void SetInCCSlow(const FunctionCallbackInfo<Value>& args) {
     obj->Set(String::NewFromOneByte(isolate, type_sym), arg1);
     obj->Set(String::NewFromOneByte(isolate, used_sym), arg2);
   }
-
-  args.GetReturnValue().Set(obj);
 }
 
 
@@ -75,8 +73,6 @@ void SetInCCSym(const FunctionCallbackInfo<Value>& args) {
     obj->Set(ToLocal<String>(&p_type_sym), arg1);
     obj->Set(ToLocal<String>(&p_used_sym), arg2);
   }
-
-  args.GetReturnValue().Set(obj);
 }
 
 
@@ -94,8 +90,6 @@ void SetInJS(const FunctionCallbackInfo<Value>& args) {
     Local<Value> argv[3] = { arg0, arg1, arg2 };
     ToLocal<Function>(&p_setprop_fn)->Call(obj, 3, argv);
   }
-
-  args.GetReturnValue().Set(obj);
 }
 
 

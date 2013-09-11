@@ -1,0 +1,18 @@
+Encoding Preference
+
+There are large performance differences between different encoding types.
+Will show a table of different encoding types.
+
+- BINARY pre v0.11 was done custom in Node converting each byte into a
+  uint8_t. This was very slow.
+- v8 has new OneByte API used in v0.11 that basically streams the data in
+  binary format. Extremely fast.
+- BINARY encoding is basically LATIN1.
+
+There are some cool tricks we can use to represent UTF8 data in a binary
+format to get around encoding/decoding performance. This can be useful
+when performing basic operations on JSON data. Working with JSON data in
+a Buffer is something that I wouldn't even want to do.
+
+New v8 has a JSON C++ API (need to test and see the conversion times on
+the Buffers).

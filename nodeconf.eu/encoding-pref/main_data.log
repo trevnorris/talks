@@ -1,0 +1,56 @@
+One Byte Character
+==================
+
+binary  16B    110.72 ns/op
+ucs2    16B    111.68 ns/op
+ascii   16B    110.06 ns/op   N/A
+utf8    16B    115.04 ns/op   N/A
+
+binary  1KB    157.29 ns/op
+ucs2    1KB    166.58 ns/op
+ascii   1KB    246.49 ns/op  -36.2%
+utf8    1KB    254.67 ns/op  -38.2%
+
+binary  32KB   2.37 μs/op
+ucs2    32KB   2.41 μs/op
+ascii   32KB   4.57 μs/op    -92.8%
+utf8    32KB   5.13 μs/op    -116.5%
+
+binary  128KB  8.79 μs/op
+ucs2    128KB  7.98 μs/op
+ascii   128KB  17.00 μs/op   -93.4%
+utf8    128KB  19.65 μs/op   -123.5%
+
+binary  512KB  36.74 μs/op
+ucs2    512KB  37.23 μs/op
+ascii   512KB  73.67 μs/op   -100.5%
+utf8    512KB  104.23 μs/op  -183.9%
+
+
+Two Byte Character
+==================
+
+binary  16B    111.21 ns/op
+ucs2    16B    113.43 ns/op
+ascii   16B    154.56 ns/op  -38.7%
+utf8    16B    156.31 ns/op  -40.5%
+
+binary  1KB    159.45 ns/op
+ucs2    1KB    163.98 ns/op
+ascii   1KB    256.65 ns/op  -37.9%
+utf8    1KB    2.65 μs/op    -1566.7%
+
+binary  32KB   2.41 μs/op
+ucs2    32KB   2.34 μs/op
+ascii   32KB   3.51 μs/op    -45.6%
+utf8    32KB   130.33 μs/op  -5306.7%
+
+binary  128KB  9.16 μs/op
+ucs2    128KB  9.12 μs/op
+ascii   128KB  15.56 μs/op   -32.8%
+utf8    128KB  539.72 μs/op  -5720%
+
+binary  512KB  37.89 μs/op
+ucs2    512KB  39.14 μs/op
+ascii   512KB  72.96 μs/op   -92.3%
+utf8    512KB  2.61 ms/op    -6788.4%

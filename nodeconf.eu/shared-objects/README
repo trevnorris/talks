@@ -1,0 +1,9 @@
+Shared Objects
+
+When you can set a callback or object, and you know it won't change, then
+it's easy to Persist the item in C++. Though when the properties can change
+then you'd usually need to read the item as a String.
+
+But, there's an alternative. By creating a numberically index Object and
+Persisting that in C++, it's easy to change the Object properties and
+access the needed information more quickly.

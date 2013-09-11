@@ -1,0 +1,20 @@
+Topics
+------
+
+- State sharing by external memory
+- Persisting Object in C++ and setting values on numeric indexes
+- Pass arguments from C++ to JS and set Object properties
+- External memory to large strings, and difference in Buffer allocations
+- Using encoding preference
+
+
+Notes: All the performance numbers are taken from latest master.
+
+Order of topics
+- encoding-pref
+- large-strings
+- pass-set-properties
+- index-vs-named
+- shared-memory
+- shared-objects
+- stateful-class

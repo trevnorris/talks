@@ -1,0 +1,11 @@
+Shared Memory State
+
+In JS it's common practice to flow logic based on what Object properties
+have been set. Checking Object properties from C++ can kill your app, so
+instead it's useful to create a stateful Object that's passed to C++ and
+place external memory on that Object. Then within C++ create a struct
+around the data. This way we can easily read/write to these flags and
+get around the cost of needing to check the Object's properties.
+
+The main place this is used is process.nextTick, to communicate with
+MakeCallback about the current state of having callback in the queue.
