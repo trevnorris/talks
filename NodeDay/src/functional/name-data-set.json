@@ -1,0 +1,599 @@
+{
+  "Aaliyah": {
+    "hours": 59
+  },
+  "Aaron": {
+    "hours": 11
+  },
+  "Abigail": {
+    "hours": 34
+  },
+  "Adam": {
+    "hours": 28
+  },
+  "Addison": {
+    "hours": 63
+  },
+  "Adrian": {
+    "hours": 1
+  },
+  "Aiden": {
+    "hours": 25
+  },
+  "Alex": {
+    "hours": 31
+  },
+  "Alexa": {
+    "hours": 62
+  },
+  "Alexander": {
+    "hours": 5
+  },
+  "Alexandra": {
+    "hours": 7
+  },
+  "Alexis": {
+    "hours": 37
+  },
+  "Alice": {
+    "hours": 58
+  },
+  "Allison": {
+    "hours": 13
+  },
+  "Alyssa": {
+    "hours": 41
+  },
+  "Amelia": {
+    "hours": 20
+  },
+  "Andrew": {
+    "hours": 67
+  },
+  "Anna": {
+    "hours": 36
+  },
+  "Annabelle": {
+    "hours": 26
+  },
+  "Anthony": {
+    "hours": 10
+  },
+  "Aria": {
+    "hours": 70
+  },
+  "Arianna": {
+    "hours": 47
+  },
+  "Asher": {
+    "hours": 5
+  },
+  "Aubrey": {
+    "hours": 55
+  },
+  "Audrey": {
+    "hours": 25
+  },
+  "Austin": {
+    "hours": 77
+  },
+  "Ava": {
+    "hours": 5
+  },
+  "Avery": {
+    "hours": 61
+  },
+  "Bailey": {
+    "hours": 48
+  },
+  "Bella": {
+    "hours": 48
+  },
+  "Benjamin": {
+    "hours": 30
+  },
+  "Bentley": {
+    "hours": 0
+  },
+  "Blake": {
+    "hours": 66
+  },
+  "Brandon": {
+    "hours": 65
+  },
+  "Brayden": {
+    "hours": 32
+  },
+  "Brianna": {
+    "hours": 0
+  },
+  "Brody": {
+    "hours": 24
+  },
+  "Brooke": {
+    "hours": 20
+  },
+  "Brooklyn": {
+    "hours": 8
+  },
+  "Caleb": {
+    "hours": 62
+  },
+  "Cameron": {
+    "hours": 58
+  },
+  "Caroline": {
+    "hours": 14
+  },
+  "Carson": {
+    "hours": 73
+  },
+  "Carter": {
+    "hours": 53
+  },
+  "Charlie": {
+    "hours": 10
+  },
+  "Charlotte": {
+    "hours": 28
+  },
+  "Chase": {
+    "hours": 11
+  },
+  "Chloe": {
+    "hours": 7
+  },
+  "Christian": {
+    "hours": 30
+  },
+  "Christopher": {
+    "hours": 59
+  },
+  "Claire": {
+    "hours": 78
+  },
+  "Clara": {
+    "hours": 66
+  },
+  "Cole": {
+    "hours": 29
+  },
+  "Colin": {
+    "hours": 27
+  },
+  "Colton": {
+    "hours": 67
+  },
+  "Connor": {
+    "hours": 9
+  },
+  "Cooper": {
+    "hours": 48
+  },
+  "Daniel": {
+    "hours": 75
+  },
+  "David": {
+    "hours": 79
+  },
+  "Declan": {
+    "hours": 41
+  },
+  "Dominic": {
+    "hours": 70
+  },
+  "Dylan": {
+    "hours": 56
+  },
+  "Easton": {
+    "hours": 76
+  },
+  "Eleanor": {
+    "hours": 20
+  },
+  "Elena": {
+    "hours": 77
+  },
+  "Eli": {
+    "hours": 9
+  },
+  "Eliana": {
+    "hours": 7
+  },
+  "Elijah": {
+    "hours": 4
+  },
+  "Elise": {
+    "hours": 53
+  },
+  "Elizabeth": {
+    "hours": 62
+  },
+  "Ella": {
+    "hours": 29
+  },
+  "Ellie": {
+    "hours": 0
+  },
+  "Emily": {
+    "hours": 19
+  },
+  "Emma": {
+    "hours": 36
+  },
+  "Ethan": {
+    "hours": 72
+  },
+  "Eva": {
+    "hours": 33
+  },
+  "Evan": {
+    "hours": 56
+  },
+  "Evelyn": {
+    "hours": 13
+  },
+  "Gabriel": {
+    "hours": 1
+  },
+  "Gabriella": {
+    "hours": 26
+  },
+  "Gavin": {
+    "hours": 56
+  },
+  "Gianna": {
+    "hours": 3
+  },
+  "Grace": {
+    "hours": 56
+  },
+  "Grayson": {
+    "hours": 75
+  },
+  "Hailey": {
+    "hours": 54
+  },
+  "Hannah": {
+    "hours": 67
+  },
+  "Harper": {
+    "hours": 67
+  },
+  "Harrison": {
+    "hours": 68
+  },
+  "Hayden": {
+    "hours": 8
+  },
+  "Henry": {
+    "hours": 32
+  },
+  "Hudson": {
+    "hours": 73
+  },
+  "Hunter": {
+    "hours": 50
+  },
+  "Ian": {
+    "hours": 7
+  },
+  "Isaac": {
+    "hours": 16
+  },
+  "Isabella": {
+    "hours": 30
+  },
+  "Isabelle": {
+    "hours": 19
+  },
+  "Isaiah": {
+    "hours": 12
+  },
+  "Isla": {
+    "hours": 74
+  },
+  "Jace": {
+    "hours": 51
+  },
+  "Jack": {
+    "hours": 12
+  },
+  "Jackson": {
+    "hours": 25
+  },
+  "Jacob": {
+    "hours": 31
+  },
+  "Jake": {
+    "hours": 10
+  },
+  "James": {
+    "hours": 40
+  },
+  "Jasmine": {
+    "hours": 2
+  },
+  "Jason": {
+    "hours": 1
+  },
+  "Jayden": {
+    "hours": 31
+  },
+  "Jeremiah": {
+    "hours": 49
+  },
+  "John": {
+    "hours": 20
+  },
+  "Jonathan": {
+    "hours": 53
+  },
+  "Jordan": {
+    "hours": 49
+  },
+  "Joseph": {
+    "hours": 25
+  },
+  "Joshua": {
+    "hours": 22
+  },
+  "Julia": {
+    "hours": 36
+  },
+  "Julian": {
+    "hours": 36
+  },
+  "Kaitlyn": {
+    "hours": 3
+  },
+  "Kate": {
+    "hours": 75
+  },
+  "Kayla": {
+    "hours": 44
+  },
+  "Kaylee": {
+    "hours": 45
+  },
+  "Kendall": {
+    "hours": 47
+  },
+  "Kennedy": {
+    "hours": 73
+  },
+  "Kylie": {
+    "hours": 51
+  },
+  "Landon": {
+    "hours": 15
+  },
+  "Lauren": {
+    "hours": 40
+  },
+  "Layla": {
+    "hours": 66
+  },
+  "Leah": {
+    "hours": 59
+  },
+  "Leo": {
+    "hours": 36
+  },
+  "Levi": {
+    "hours": 52
+  },
+  "Liam": {
+    "hours": 18
+  },
+  "Lillian": {
+    "hours": 60
+  },
+  "Lily": {
+    "hours": 29
+  },
+  "Lincoln": {
+    "hours": 69
+  },
+  "Logan": {
+    "hours": 31
+  },
+  "Lucas": {
+    "hours": 10
+  },
+  "Lucy": {
+    "hours": 47
+  },
+  "Luke": {
+    "hours": 77
+  },
+  "Lyla": {
+    "hours": 47
+  },
+  "Mackenzie": {
+    "hours": 56
+  },
+  "Madelyn": {
+    "hours": 12
+  },
+  "Madison": {
+    "hours": 66
+  },
+  "Makayla": {
+    "hours": 58
+  },
+  "Maria": {
+    "hours": 35
+  },
+  "Mason": {
+    "hours": 11
+  },
+  "Matthew": {
+    "hours": 0
+  },
+  "Max": {
+    "hours": 11
+  },
+  "Maya": {
+    "hours": 36
+  },
+  "Mia": {
+    "hours": 79
+  },
+  "Micah": {
+    "hours": 33
+  },
+  "Michael": {
+    "hours": 63
+  },
+  "Mila": {
+    "hours": 48
+  },
+  "Miles": {
+    "hours": 46
+  },
+  "Molly": {
+    "hours": 38
+  },
+  "Morgan": {
+    "hours": 17
+  },
+  "Natalie": {
+    "hours": 0
+  },
+  "Nathan": {
+    "hours": 53
+  },
+  "Nathaniel": {
+    "hours": 15
+  },
+  "Nevaeh": {
+    "hours": 49
+  },
+  "Nicholas": {
+    "hours": 35
+  },
+  "Noah": {
+    "hours": 48
+  },
+  "Nolan": {
+    "hours": 26
+  },
+  "Nora": {
+    "hours": 28
+  },
+  "Oliver": {
+    "hours": 71
+  },
+  "Olivia": {
+    "hours": 78
+  },
+  "Owen": {
+    "hours": 75
+  },
+  "Paige": {
+    "hours": 51
+  },
+  "Parker": {
+    "hours": 64
+  },
+  "Peyton": {
+    "hours": 28
+  },
+  "Piper": {
+    "hours": 33
+  },
+  "Quinn": {
+    "hours": 46
+  },
+  "Reagan": {
+    "hours": 45
+  },
+  "Reese": {
+    "hours": 20
+  },
+  "Riley": {
+    "hours": 54
+  },
+  "Ruby": {
+    "hours": 43
+  },
+  "Ryan": {
+    "hours": 71
+  },
+  "Ryder": {
+    "hours": 26
+  },
+  "Sadie": {
+    "hours": 13
+  },
+  "Samantha": {
+    "hours": 77
+  },
+  "Samuel": {
+    "hours": 75
+  },
+  "Sarah": {
+    "hours": 38
+  },
+  "Savannah": {
+    "hours": 41
+  },
+  "Scarlett": {
+    "hours": 1
+  },
+  "Sean": {
+    "hours": 18
+  },
+  "Sebastian": {
+    "hours": 48
+  },
+  "Sienna": {
+    "hours": 9
+  },
+  "Sophia": {
+    "hours": 4
+  },
+  "Sophie": {
+    "hours": 15
+  },
+  "Stella": {
+    "hours": 63
+  },
+  "Sydney": {
+    "hours": 29
+  },
+  "Taylor": {
+    "hours": 43
+  },
+  "Thomas": {
+    "hours": 74
+  },
+  "Tristan": {
+    "hours": 50
+  },
+  "Tyler": {
+    "hours": 58
+  },
+  "Victoria": {
+    "hours": 55
+  },
+  "Violet": {
+    "hours": 23
+  },
+  "William": {
+    "hours": 2
+  },
+  "Wyatt": {
+    "hours": 48
+  },
+  "Xavier": {
+    "hours": 72
+  },
+  "Zachary": {
+    "hours": 55
+  },
+  "Zoe": {
+    "hours": 17
+  }
+}

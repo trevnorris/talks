@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+
+	<title>Performance Sins of Our Abstractions</title>
+
+	<meta name="description" content="Why every abstraction is wrong...">
+	<meta name="author" content="Trevor Norris">
+
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+	<link rel="stylesheet" href="css/reveal.min.css">
+	<link rel="stylesheet" href="css/theme/night.css" id="theme">
+
+	<!-- For syntax highlighting -->
+	<link rel="stylesheet" href="lib/css/zenburn.css">
+
+	<!-- If the query includes 'print-pdf', use the PDF print sheet -->
+	<script>
+		document.write('<link rel="stylesheet" href="css/print/' + (window.location.search.match(/print-pdf/gi) ? 'pdf' : 'paper') + '.css" type="text/css" media="print">');
+	</script>
+
+	<!-- styles specific to this presentation -->
+	<style>
+		div.lefty-section {
+			text-align: left;
+			margin-top: 48px;
+		}
+		div.lefty-section p {
+			font-size: 34px;
+		}
+		pre.std-pre {
+			font-size: 24px;
+			margin-top: 38px;
+		}
+    .reveal pre code {
+      max-height: 720px;
+      padding: 12px;
+    }
+    .reveal .slides > section {
+      padding: 0;
+      min-height: 90%;
+    }
+    .reveal .slides {
+      height: 100%;
+      top: 400px;
+      margin-top: 0;
+    }
+    /*
+    .reveal .slides > section > section {
+      min-height: 100%;
+    }
+    */
+	</style>
+
+	<!--[if lt IE 9]>
+	<script src="lib/js/html5shiv.js"></script>
+	<![endif]-->
+</head>
+<body>
+	<div class="reveal">
+
+		<!-- Any section element inside of this container is displayed as a slide -->
+		<div class="slides">
+
+      <section>
+        <h1>Who am I?</h1>
+        <div style="text-align:left;">
+          <h3 style="margin-top: 80px;">Trevor Norris</h3>
+          <h3 style="margin-top: 40px;">Node.js Maintainer</h3>
+          <h3 style="margin-top: 40px;">Mozillian</h3>
+        </div>
+      </section>
+
+      <section>
+        <h3>before we get started</h3>
+        <p>let's have some fun</p>
+        <div class="lefty-section">
+          <p>Use compile flags:</p>
+          <p style="padding-left: 60px;"><code>--gdb --without-snapshot</code></p>
+          <p style="margin-top: 40px;">Run your process with:</p>
+          <p style="padding-left: 60px;"><code>gdb -d lib/ -d src/ --args \</code></p>
+          <p style="padding-left: 120px;"><code>./node --gdbjit --gdbjit-full script.js</code></p>
+          <p class="fragment" style="margin-top: 40px;">What you get is:</p>
+        </div>
+      </section>
+
+      <section>
+        <pre style="font-size: 22px; box-shadow: 0 0 0;">
+(gdb) b uv_write2
+
+#0  uv_write2 (...) at ../deps/uv/src/unix/stream.c:1232
+#1  in uv_write (...) at ../deps/uv/src/unix/stream.c:1319
+#2  uv_try_write (...) at ../deps/uv/src/unix/stream.c:1344
+#3  in node::StreamWrapCallbacks::TryWrite(...) ()
+#4  in void node::StreamWrap::WriteStringImpl&lt;(...)1&gt;(...) ()
+#5  in v8::internal::FunctionCallbackArguments::Call(...) ()
+#6  in v8::internal::Builtin_HandleApiCall(...) ()
+#7  in STUB: CEntryStub ()
+
+#8  in createWriteReq (...) at net.js:719
+#9  in Socket._writeGeneric (...) at net.js:662
+#10 in Socket._write (...) at net.js:685
+#11 in doWrite (...) at _stream_writable.js:262
+#12 in clearBuffer (...) at _stream_writable.js:368
+#13 in Writable.uncork () at _stream_writable.js:217
+#14 in OutgoingMessage.end (...) at _http_outgoing.js:539
+                                    ^^^
+        Yeah, that's JS in your gdb ~~~
+        </pre>
+      </section>
+
+      <section>
+        <pre style="font-size: 24px; box-shadow: 0 0 0;">
+(gdb) f 14
+#14 in OutgoingMessage.end (...) at _http_outgoing.js:539
+539      this.connection.uncork();
+
+(gdb) l
+534     // Force a flush, HACK.
+535     ret = this._send('', 'binary', finish);
+536   }
+537
+538   if (this.connection && data)
+539     this.connection.uncork();
+540
+541   this.finished = true;
+
+        </pre>
+        <div class="lefy-section">
+          <p>Yes, you can view the JS code from gdb.</p>
+        </div>
+      </section>
+
+      <section>
+        <div class="lefy-section">
+          <p>Easily find where you're crossing boundaries</p>
+        </div>
+        <pre style="font-size: 24px; box-shadow: 0 0 0; margin-top: 35px;">
+(gdb) f 7
+#7  in STUB: CEntryStub ()
+             ^^^
+             ~~~ JS/C++ transversal
+
+(gdb) l
+544   // everything to the socket.
+545   debug('outgoing message end.');
+546   if (this.output.length === 0 &&
+547       this.connection._httpMessage === this) {
+548     this._finish();
+                ^^^
+Here's the call ~~~
+        </pre>
+      </section>
+
+      <section>
+        <h2>Performance Sins of our Abstractions</h2>
+        <div class="lefty-section">
+          <p class="fragment" style="margin-top: 50px;">Tweeted this title at 1:45 AM</p>
+          <p class="fragment" style="margin-top: 50px;">Personal note: Don't tweet after midnight...</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>preliminary note</h3>
+        <div class="lefty-section">
+          <p class="fragment">This may incur some (or much) indignation</p>
+          <p class="fragment">Didn't know before planning the topic there would be a QA</p>
+          <p class="fragment">... so please be kind</p>
+          <p class="fragment" style="margin-top: 60px;">REMEMBER this talk is geared towards <b>high performance</b> and <b>hot code</b>, not for your everyday app</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>quick V8 perf tips</h3>
+        <div class="lefty-section">
+          <p class="fragment" style="margin-top: 30px;">Inlined functions can't contain more than 600 characters<br>(including comments)</p>
+          <p class="fragment" style="margin-top: 30px;">Inlined functions must be declared close to the call site</p>
+          <p class="fragment" style="margin-top: 30px;">After N deopts V8 marks the function as not optimizable</p>
+          <p class="fragment">(hence the importance to not allow deoptimizations in long running processes)</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>quick Node perf tips</h3>
+        <div class="lefty-section">
+          <p class="fragment" style="margin-top: 30px;">Some events like DNS and FS are pseudo-async.<br>(meaning they tie up a thread in the background)</p>
+          <p class="fragment" style="margin-top: 30px;">Think really really hard before you decide to use a synchronous method call</p>
+          <p class="fragment" style="margin-top: 30px;">Node uses little memory, so investigate using <code>Buffer</code>s to cache resources</p>
+          <p class="fragment">(reconstructing resources on the fly can be faster than reading from the file system)</p>
+          <p class="fragment" style="margin-top: 30px;">For I/O intensive scenarios keep track of request requirement <i>ratios</i> by tracing libuv</p>
+          <p class="fragment">(don't need to know C to understand what the libuv API is doing, and it can really help)</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>quick libuv tracing</h3>
+        <div class="lefty-section">
+          <p>Use <code>ktap</code> to create a quick histogram with this script:</p>
+        </div>
+        <pre style="font-size: 24px; box-shadow: 0 0 0; margin-top: 35px;">var s = {}
+trace probe:/path/to/node:uv_[a-z]* {
+  s[argname] += 1
+}
+
+trace_end {
+  histogram(s)
+} </pre>
+      </section>
+
+      <section>
+        <div class="lefty-section">
+          <p>And have it look like this:</p>
+        </div>
+        <pre style="font-size: 24px; box-shadow: 0 0 0; margin-top: 35px;">
+           value ------------- Distribution ------------- count
+uv_fs_req_cleanup |@@@@@@@@@@                             92945
+           uv_now |@@@@                                   36680
+   uv_update_time |@@@@                                   36680
+       uv_fs_stat |@@                                     18932
+       uv_fs_open |@@                                     18474
+       uv_fs_read |@@                                     18428
+      uv_fs_close |@@                                     18428
+      uv_fs_fstat |@@                                     18428
+     uv_try_write |@@                                     18297
+      uv_buf_init |@@                                     18297
+        uv_write2 |@@                                     18297</pre>
+        <p class="fragment">Who needs DTrace anyways? ;-P</p>
+      </section>
+
+      <section>
+        <h3>quote</h3>
+        <p style="margin-top: 50px; text-align: left; font-size: 1.2em;">We choose the amount of abstraction, but not the performance cost that comes with.</p>
+        <div class="fragment" style="margin-top: 80px;">
+          <h3>quote</h3>
+          <p style="margin-top: 50px; text-align: left; font-size: 1.2em;">We choose how much to performance tune, but not how ugly it makes the code...</p>
+          <p class="fragment" style="text-align: left; font-size: 1.2em;">or how much it will make other developers hate you.</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>functions all the way down</h3>
+        <div class="lefty-section">
+          <p>It's common practice to nest Functions for usually one of two reasons:</p>
+          <p>- Allow variables to propagate or keep the "private"</p>
+          <p>- Easier to pass as an argument</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>messing with V8 hidden classes</h3>
+        <p>(thanks @mraleph for the examples)
+        <div class="lefty-section" style="margin-top: 0px;">
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 16px;">function ClosureColor(name) {
+  this.getName = function () {
+      return name;
+  };
+  this.setName = function (n) {
+      name = n;
+  };
+}</code></pre>
+        <p class="fragment">Instantiates in 280 ns</p>
+        <pre class="fragment" style="font-size: 20px;"><code class="language-javascript" style="margin-top: 16px;">function PrototypeColor(name) {
+  this._name = name;
+}
+
+PrototypeColor.prototype.getName = function () {
+  return this._name;
+};
+
+PrototypeColor.prototype.setName = function (n) {
+  this._name = n;
+};</code></pre>
+        <p class="fragment">Instantiates in 7 ns</p>
+        <p class="fragment" style="text-align: center;">Does it matter?</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>js and functional programming</h3>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 16px;">function sumSort(a, b) { return b.hours - a.hours }
+
+function sumHours(people, nameReg, minHours) {
+  var result = [];
+
+  // Filter by regex and work hours.
+  Object.keys(people).filter(function(name) {
+    return people[name].hours &gt;= minHours && nameReg.test(name[0]);
+
+  // Add each person with the number of hours they've worked to the array
+  }).forEach(function(name) {
+    result.push({ name: name, hours: people[name].hours });
+  });
+
+  // Sort the names of the people by the most hours.
+  return result.sort(sumSort);
+}</code></pre>
+      </section>
+
+      <section>
+        <h3>not so functional</h3>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 16px;">function sumSort(a, b) { return b.hours - a.hours }
+
+function sumHours(people, nameReg, minHours) {
+  var result = [];
+  var names = Object.keys(people);
+  var i, n;
+
+  for (i = 0; i &lt; names.length; i++) {
+    n = names[i];
+    if (people[n].hours &gt;= minHours && nameReg.test(n))
+      result.push({ name: n, hours: people[n].hours });
+  }
+
+  return result.sort(sumSort)
+}</code></pre>
+        <pre class="fragment" style="font-size: 35px; box-shadow: 0 0 0; margin-top: 60px;">
+Functional: 38.1 us/op
+Not:        21.7 us/op
+Diff:       45.1%
+        </pre>
+      </section>
+
+      <section>
+        <h3>not so fast callbacks</h3>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 16px;">module.exports = function upload(stream, idOrPath, tag, done) {
+  // ...
+  function backoff(err) { /* ... */ }
+  blob.put(stream, function (err, blobId) {
+    // ...
+    self.byUuidOrPath(idOrPath).get(function (err, file) {
+      // ...
+      Version.insert(version).execWithin(tx, function (err) {
+        // ...
+          self.createQuery(idOrPath, {
+            // ...
+          }, function (err, q) {
+            // ...
+            q.execWithin(tx, function (err) { /* ... */ });
+          });
+        // ...
+      });
+      function afterFileExists(err, fileId) {
+        // ...
+        FileVersion.insert({fileId: fileId,versionId: version.id})
+        .execWithin(tx, function (err) {
+          // ...
+          File.whereUpdate({id: fileId}, {
+            // ...
+          }).execWithin(tx, function (err) { /* ... */ });
+        })
+      }
+    });
+  });
+}</code></style>
+      </section>
+
+      <section>
+        <h3>a better approach</h3>
+        <div class="lefty-section">
+          <p>Original response time: 290ms
+          <p class="fragment" style="margin-top: 50px;">By only hoisting functions and creating a single Object to maintain the request state, V8 was able to optimize these functions and keep them that way.</p>
+          <p class="fragment" style="margin-top: 30px;">After slight refactor: 114ms</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>psycho-proxy</h3>
+        <div class="lefty-section">
+          <p>Heard complaints about how slow Node was to proxy data compared to nginx. So I built my own.</p>
+          <p>(https://github.com/trevnorris/psycho-proxy)</p>
+          <p class="fragment" style="margin-top: 80px;">Bypasses Streams and EventEmitter</p>
+          <p class="fragment" style="margin-top: 40px;">Super fast (40k/sec on loopback, and probably enough to fill up your network pipe regardless)</p>
+          <p class="fragment" style="margin-top: 40px;">Makes your eyes bleed to look at</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>psycho-proxy snippet</h3>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 16px;">var connection;
+if (isNaN(pOp))
+  connection = PipeConnect(this, buffer, pOp);
+else
+  connection = TCPConnect(this, buffer, '127.0.0.1', pOp);
+
+// Setup return loop to bypass all further checks.
+connection._return_route = this;
+this._return_route = connection;</code></pre>
+        <pre style="font-size: 20px;"><code class="language-javascript" style="margin-top: 16px;">// The method that proxies the data.
+function proxyDataBetween(nread, data) {
+  var err, req;
+  if (nread &lt;= 0) {
+    if (nread &lt; 0)
+      this.close(onClose);
+    return;
+  }
+  if (this._return_route.fd &lt;= 0) {
+    err = new Error('Attempt to write to bad file descriptor');
+    err.code = 'EBADF';
+    alert(this, err);
+    return;
+  }
+  req = { oncomplete: dataWritten };
+  err = this._return_route.writeBuffer(req, data);
+  if (err)
+    fail(this, err, 'write');
+}</code></pre>
+      </section>
+
+      <section>
+        <h3>insane abstraction</h3>
+        <div class="lefty-section">
+          <p>Sadly, I may be responsible for the most abstract interface in Node core.</p>
+          <p class="fragment" style="margin-top: 30px;">New AsyncListener API... is a bit nuts.</p>
+          <p class="fragment" style="margin-top: 30px;">It's about 500 lines of JS (excluding C++). 200 of which are comments.</p>
+          <p class="fragment" style="margin-top: 30px;">Gives users the ability to attach a "listener" to an Object that may break the call stack in the future.</p>
+          <p class="fragment" style="margin-top: 30px;">Users will be alerted to either all, or a filtered set, of branching asynchronous calls.</p>
+          <p class="fragment" style="margin-top: 30px;">Errors are traceable beyond asynchronous call stack bounds.</p>
+        </div>
+      </section>
+
+      <section>
+        <h3>what we can learn from this</h3>
+        <div class="lefty-section">
+          <p class="fragment" style="margin-top: 60px;">Write code you can maintain.</p>
+          <p class="fragment" style="margin-top: 60px;">Write code that doesn't crash. The slowest code is the code that doesn't run.</p>
+          <p class="fragment" style="margin-top: 60px;">Code for your case. Very few code with Node core performance requirements in mind.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Thank You</h2>
+      </section>
+    </div>
+  </div>
+
+	<script src="lib/js/head.min.js"></script>
+	<script src="js/reveal.min.js"></script>
+
+	<script>
+		// Full list of configuration options available here:
+		// https://github.com/hakimel/reveal.js#configuration
+		Reveal.initialize({
+			controls: true,
+			progress: true,
+			history: true,
+			center: true,
+
+			theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+			transition: Reveal.getQueryHash().transition || 'none', // default/cube/page/concave/zoom/linear/fade/none
+
+			// Optional libraries used to extend on reveal.js
+			dependencies: [
+				{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+				{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+				{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+				{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+				{ src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+				{ src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+			]
+		});
+	</script>
+</body>
+</html>
